@@ -4,4 +4,11 @@ numpy
 pymongo
 certifi
 boto3
+scikit-learn
+mlflow
+pyaml
+dagshub
+fastapi
+uvicorn
+python-multipart
 # -e .

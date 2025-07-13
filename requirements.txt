@@ -5,7 +5,7 @@ pymongo
 certifi
 boto3
 scikit-learn
-mlflow
+mlflow<3
 pyaml
 dagshub
 fastapi

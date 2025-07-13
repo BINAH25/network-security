@@ -28,7 +28,7 @@ from networksecurity.exception.exception import NetworkSecurityException
 from networksecurity.logging.logger import logging
 
 # Utility functions to save objects and arrays
-from networksecurity.utils.main_utils.utils import save_numpy_array_data, save_object
+from networksecurity.utils.main_utils.utils import save_numpy_array_data, save_object, upload_file_to_s3
 
 # Load environment variables from `.env` file
 load_dotenv()
@@ -68,24 +68,6 @@ class DataTransformation:
             logging.info(f"Initialized KNNImputer with {DATA_TRANSFORMATION_IMPUTER_PARAMS}")
             processor: Pipeline = Pipeline([("imputer", imputer)])
             return processor
-        except Exception as e:
-            raise NetworkSecurityException(e, sys)
-
-    def upload_file_to_s3(self, file_path: str, s3_key: str):
-        """
-        Uploads a local file (npy or pkl) to a specific key in the AWS S3 bucket.
-        """
-        try:
-            s3_bucket = os.getenv("GOLD_BUCKET")  # Bucket for transformed (gold) data
-            s3_client = boto3.client(
-                's3',
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                region_name=os.getenv("AWS_REGION")
-            )
-
-            s3_client.upload_file(file_path, s3_bucket, s3_key)
-            logging.info(f"✅ Uploaded {file_path} to s3://{s3_bucket}/{s3_key}")
         except Exception as e:
             raise NetworkSecurityException(e, sys)
 
@@ -136,9 +118,9 @@ class DataTransformation:
             save_object("final_model/preprocessor.pkl", preprocessor_object)
 
             # Upload transformed files to S3
-            self.upload_file_to_s3(self.data_transformation_config.transformed_train_file_path, "transformed/train.npy")
-            self.upload_file_to_s3(self.data_transformation_config.transformed_test_file_path, "transformed/test.npy")
-            self.upload_file_to_s3(self.data_transformation_config.transformed_object_file_path, "transformed/preprocessor.pkl")
+            upload_file_to_s3(self.data_transformation_config.transformed_train_file_path, "transformed/train.npy", "GOLD_BUCKET")
+            upload_file_to_s3(self.data_transformation_config.transformed_test_file_path, "transformed/test.npy", "GOLD_BUCKET")
+            upload_file_to_s3(self.data_transformation_config.transformed_object_file_path, "transformed/preprocessor.pkl", "GOLD_BUCKET")
 
             # Prepare artifact object to pass to the next pipeline stage
             data_transformation_artifact = DataTransformationArtifact(

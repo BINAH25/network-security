@@ -20,7 +20,7 @@ import boto3
 from io import StringIO, BytesIO
 
 # Utility functions for YAML handling
-from networksecurity.utils.main_utils.utils import read_yaml_file, write_yaml_file
+from networksecurity.utils.main_utils.utils import read_yaml_file, write_yaml_file, upload_file_to_s3
 
 # Load environment variables (.env file)
 load_dotenv()
@@ -103,26 +103,6 @@ class DataValidation:
             raise NetworkSecurityException(e, sys)
 
 
-    def upload_file_to_s3(self, file_path: str, s3_key: str):
-        """
-        Uploads a validated file to the specified key in the Silver S3 bucket.
-        """
-        try:
-            s3_bucket = os.getenv("SILVER_BUCKET")  # S3 bucket for validated data
-            s3_client = boto3.client(
-                's3',
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                region_name=os.getenv("AWS_REGION")
-            )
-
-            # Upload file
-            s3_client.upload_file(file_path, s3_bucket, s3_key)
-            logging.info(f"✅ Uploaded {file_path} to s3://{s3_bucket}/{s3_key}")
-        except Exception as e:
-            raise NetworkSecurityException(e, sys)
-
-
     def initiate_data_validation(self) -> DataValidationArtifact:
         """
         Coordinates the full validation process:
@@ -163,8 +143,8 @@ class DataValidation:
             test_dataframe.to_csv(self.data_validation_config.valid_test_file_path, index=False, header=True)
 
             # ✅ Upload validated data to Silver S3
-            self.upload_file_to_s3(self.data_validation_config.valid_train_file_path, "validated/train.csv")
-            self.upload_file_to_s3(self.data_validation_config.valid_test_file_path, "validated/test.csv")
+            upload_file_to_s3(self.data_validation_config.valid_train_file_path, "validated/train.csv","SILVER_BUCKET")
+            upload_file_to_s3(self.data_validation_config.valid_test_file_path, "validated/test.csv", "SILVER_BUCKET")
 
             # Create and return DataValidationArtifact object
             data_validation_artifact = DataValidationArtifact(

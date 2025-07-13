@@ -5,6 +5,7 @@ from networksecurity.logging.logger import logging
 # Data ingestion configuration and artifact tracking
 from networksecurity.entity.config_entity import DataIngestionConfig
 from networksecurity.entity.artifact_entity import DataIngestionArtifact
+from networksecurity.utils.main_utils.utils import upload_file_to_s3
 
 # Core imports
 import os
@@ -83,26 +84,6 @@ class DataIngestion:
         except Exception as e:
             raise NetworkSecurityException(e, sys)
         
-    def upload_file_to_s3(self, file_path: str, s3_key: str):
-        """
-        Uploads a local file to the specified key in the Bronze S3 bucket.
-        Args:
-            file_path: Local file path to upload.
-            s3_key: Destination path inside the S3 bucket.
-        """
-        try:
-            s3_bucket = os.getenv("BRONZE_BUCKET")
-            s3_client = boto3.client(
-                's3',
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                region_name=os.getenv("AWS_REGION")
-            )
-
-            s3_client.upload_file(file_path, s3_bucket, s3_key)
-            logging.info(f"Uploaded {file_path} to s3://{s3_bucket}/{s3_key}")
-        except Exception as e:
-            raise NetworkSecurityException(e, sys)
 
     def split_data_as_train_test(self, dataframe: pd.DataFrame):
         """
@@ -127,8 +108,8 @@ class DataIngestion:
             test_set.to_csv(test_path, index=False, header=True)
 
             # Upload train/test splits to S3 (Bronze layer)
-            self.upload_file_to_s3(train_path, "train_test/train.csv")
-            self.upload_file_to_s3(test_path, "train_test/test.csv")
+            upload_file_to_s3(train_path, "train_test/train.csv", "BRONZE_BUCKET")
+            upload_file_to_s3(test_path, "train_test/test.csv", "BRONZE_BUCKET")
 
         except Exception as e:
             raise NetworkSecurityException(e, sys)

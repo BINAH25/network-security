@@ -1,82 +1,114 @@
-from networksecurity.entity.artifact_entity import DataIngestionArtifact,DataValidationArtifact
+# Import data artifact and config definitions
+from networksecurity.entity.artifact_entity import DataIngestionArtifact, DataValidationArtifact
 from networksecurity.entity.config_entity import DataValidationConfig
+
+# Custom exception and logging
 from networksecurity.exception.exception import NetworkSecurityException 
 from networksecurity.logging.logger import logging 
+
+# Schema file path
 from networksecurity.constants.training_pipeline import SCHEMA_FILE_PATH
+
+# For statistical comparison between two datasets
 from scipy.stats import ks_2samp
+
+# Core libraries
 import pandas as pd
-import os,sys
+import os, sys
 from dotenv import load_dotenv
 import boto3
 from io import StringIO, BytesIO
 
-from networksecurity.utils.main_utils.utils import read_yaml_file,write_yaml_file
+# Utility functions for YAML handling
+from networksecurity.utils.main_utils.utils import read_yaml_file, write_yaml_file
+
+# Load environment variables (.env file)
 load_dotenv()
 
+
 class DataValidation:
-    def __init__(self,data_ingestion_artifact:DataIngestionArtifact,
-                 data_validation_config:DataValidationConfig):
-        
+    def __init__(self, data_ingestion_artifact: DataIngestionArtifact,
+                 data_validation_config: DataValidationConfig):
+        """
+        Constructor that initializes validation configs and reads schema definition.
+        """
         try:
-            self.data_ingestion_artifact=data_ingestion_artifact
-            self.data_validation_config=data_validation_config
+            self.data_ingestion_artifact = data_ingestion_artifact
+            self.data_validation_config = data_validation_config
+            # Read expected schema from YAML file
             self._schema_config = read_yaml_file(SCHEMA_FILE_PATH)
         except Exception as e:
-            raise NetworkSecurityException(e,sys)
-        
+            raise NetworkSecurityException(e, sys)
+
     @staticmethod
-    def read_data(file_path)->pd.DataFrame:
+    def read_data(file_path) -> pd.DataFrame:
+        """
+        Reads CSV from the given path and returns it as a DataFrame.
+        """
         try:
             return pd.read_csv(file_path)
         except Exception as e:
-            raise NetworkSecurityException(e,sys)
-        
-    def validate_number_of_columns(self,dataframe:pd.DataFrame)->bool:
+            raise NetworkSecurityException(e, sys)
+
+    def validate_number_of_columns(self, dataframe: pd.DataFrame) -> bool:
+        """
+        Validates if the dataframe has the same number of columns as defined in the schema.
+        """
         try:
-            number_of_columns=len(self._schema_config)
-            logging.info(f"Required number of columns:{number_of_columns}")
-            logging.info(f"Data frame has columns:{len(dataframe.columns)}")
-            if len(dataframe.columns)==number_of_columns:
-                return True
-            return False
+            number_of_columns = len(self._schema_config)  
+            logging.info(f"Required number of columns: {number_of_columns}")
+            logging.info(f"Data frame has columns: {len(dataframe.columns)}")
+
+            return len(dataframe.columns) == number_of_columns
         except Exception as e:
-            raise NetworkSecurityException(e,sys)
-        
-    def detect_dataset_drift(self,base_df,current_df,threshold=0.05)->bool:
+            raise NetworkSecurityException(e, sys)
+
+    def detect_dataset_drift(self, base_df, current_df, threshold=0.05) -> bool:
+        """
+        Uses the Kolmogorov-Smirnov test to compare feature distributions
+        between base and current datasets.
+        """
         try:
-            status=True
-            report={}
+            status = True  # Will be set to False if drift is detected
+            report = {}
+
             for column in base_df.columns:
-                d1=base_df[column]
-                d2=current_df[column]
-                is_same_dist=ks_2samp(d1,d2)
-                if threshold<=is_same_dist.pvalue:
-                    is_found=False
+                d1 = base_df[column]
+                d2 = current_df[column]
+
+                # Perform KS test
+                is_same_dist = ks_2samp(d1, d2)
+
+                # If p-value is less than threshold, drift is found
+                if threshold <= is_same_dist.pvalue:
+                    is_found = False
                 else:
-                    is_found=True
-                    status=False
-                report.update({column:{
-                    "p_value":float(is_same_dist.pvalue),
-                    "drift_status":is_found
-                    
-                    }})
+                    is_found = True
+                    status = False
+
+                # Add drift details for this column
+                report[column] = {
+                    "p_value": float(is_same_dist.pvalue),
+                    "drift_status": is_found
+                }
+
+            # Save drift report to file
             drift_report_file_path = self.data_validation_config.drift_report_file_path
-
-            #Create directory
             dir_path = os.path.dirname(drift_report_file_path)
-            os.makedirs(dir_path,exist_ok=True)
-            write_yaml_file(file_path=drift_report_file_path,content=report)
+            os.makedirs(dir_path, exist_ok=True)
+            write_yaml_file(file_path=drift_report_file_path, content=report)
 
+            return status
         except Exception as e:
-            raise NetworkSecurityException(e,sys)
-        
+            raise NetworkSecurityException(e, sys)
+
 
     def upload_file_to_s3(self, file_path: str, s3_key: str):
         """
         Uploads a validated file to the specified key in the Silver S3 bucket.
         """
         try:
-            s3_bucket = os.getenv("SILVER_BUCKET") 
+            s3_bucket = os.getenv("SILVER_BUCKET")  # S3 bucket for validated data
             s3_client = boto3.client(
                 's3',
                 aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -84,49 +116,57 @@ class DataValidation:
                 region_name=os.getenv("AWS_REGION")
             )
 
+            # Upload file
             s3_client.upload_file(file_path, s3_bucket, s3_key)
             logging.info(f"✅ Uploaded {file_path} to s3://{s3_bucket}/{s3_key}")
         except Exception as e:
             raise NetworkSecurityException(e, sys)
 
-        
-    
-    def initiate_data_validation(self)->DataValidationArtifact:
+
+    def initiate_data_validation(self) -> DataValidationArtifact:
+        """
+        Coordinates the full validation process:
+        - Load data
+        - Check column count
+        - Perform drift detection
+        - Save validated data
+        - Upload to S3
+        - Return validation artifact
+        """
         try:
-            train_file_path=self.data_ingestion_artifact.trained_file_path
-            test_file_path=self.data_ingestion_artifact.test_file_path
+            # Paths to raw train/test data
+            train_file_path = self.data_ingestion_artifact.trained_file_path
+            test_file_path = self.data_ingestion_artifact.test_file_path
 
-            ## read the data from train and test
-            train_dataframe=DataValidation.read_data(train_file_path)
-            test_dataframe=DataValidation.read_data(test_file_path)
-            
-            ## validate number of columns
+            # Load CSVs
+            train_dataframe = DataValidation.read_data(train_file_path)
+            test_dataframe = DataValidation.read_data(test_file_path)
 
-            status=self.validate_number_of_columns(dataframe=train_dataframe)
+            # Validate column count in train
+            status = self.validate_number_of_columns(dataframe=train_dataframe)
             if not status:
-                error_message=f"Train dataframe does not contain all columns.\n"
+                error_message = "Train dataframe does not contain all columns.\n"
+
+            # Validate column count in test
             status = self.validate_number_of_columns(dataframe=test_dataframe)
             if not status:
-                error_message=f"Test dataframe does not contain all columns.\n"   
+                error_message = "Test dataframe does not contain all columns.\n"
 
-            ## lets check datadrift
-            status=self.detect_dataset_drift(base_df=train_dataframe,current_df=test_dataframe)
-            dir_path=os.path.dirname(self.data_validation_config.valid_train_file_path)
-            os.makedirs(dir_path,exist_ok=True)
+            # Check for data drift between train and test
+            status = self.detect_dataset_drift(base_df=train_dataframe, current_df=test_dataframe)
 
-            train_dataframe.to_csv(
-                self.data_validation_config.valid_train_file_path, index=False, header=True
+            # Save validated data locally
+            dir_path = os.path.dirname(self.data_validation_config.valid_train_file_path)
+            os.makedirs(dir_path, exist_ok=True)
 
-            )
+            train_dataframe.to_csv(self.data_validation_config.valid_train_file_path, index=False, header=True)
+            test_dataframe.to_csv(self.data_validation_config.valid_test_file_path, index=False, header=True)
 
-            test_dataframe.to_csv(
-                self.data_validation_config.valid_test_file_path, index=False, header=True
-            )
-
-            # ✅ Upload to Silver S3
+            # ✅ Upload validated data to Silver S3
             self.upload_file_to_s3(self.data_validation_config.valid_train_file_path, "validated/train.csv")
             self.upload_file_to_s3(self.data_validation_config.valid_test_file_path, "validated/test.csv")
-                        
+
+            # Create and return DataValidationArtifact object
             data_validation_artifact = DataValidationArtifact(
                 validation_status=status,
                 valid_train_file_path=self.data_ingestion_artifact.trained_file_path,
@@ -136,8 +176,6 @@ class DataValidation:
                 drift_report_file_path=self.data_validation_config.drift_report_file_path,
             )
             return data_validation_artifact
+
         except Exception as e:
-            raise NetworkSecurityException(e,sys)
-
-
-
+            raise NetworkSecurityException(e, sys)

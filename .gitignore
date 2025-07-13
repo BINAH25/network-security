@@ -145,6 +145,7 @@ env.bak/
 venv.bak/
 Artifacts
 logs
+final_model
 # Spyder project settings
 .spyderproject
 .spyproject

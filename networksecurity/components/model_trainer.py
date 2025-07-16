@@ -50,14 +50,13 @@ class ModelTrainer:
             raise NetworkSecurityException(e, sys)
 
     def track_mlflow(self, best_model, classificationmetric):
-        """
-        Logs F1, precision, recall scores to MLflow.
-        """
         with mlflow.start_run():
             mlflow.log_metric("f1_score", classificationmetric.f1_score)
             mlflow.log_metric("precision", classificationmetric.precision_score)
-            mlflow.log_metric("recall_score", classificationmetric.recall_score)
+            mlflow.log_metric("recall", classificationmetric.recall_score)
+            mlflow.log_metric("accuracy", classificationmetric.accuracy_score) 
             mlflow.sklearn.log_model(best_model, "model")
+
 
     def train_model(self, X_train, y_train, x_test, y_test):
         """
@@ -98,19 +97,22 @@ class ModelTrainer:
             param=params
         )
 
-        # 📄 Save the report locally
+        # Save the report locally
         report_save_path = os.path.join("report", "model_comparison_report.yaml")
         os.makedirs(os.path.dirname(report_save_path), exist_ok=True)
         write_yaml_file(file_path=report_save_path, content=model_report)
-        logging.info(f"📄 Model comparison report saved to: {report_save_path}")
+        logging.info(f"Model comparison report saved to: {report_save_path}")
 
-        # ✅ Upload report to S3
+        # Upload report to S3
         upload_file_to_s3(report_save_path, "report/model_comparison_report.yaml", "REPORT")
 
-        # Select best model
-        best_model_score = max(model_report.values())
-        best_model_name = list(model_report.keys())[list(model_report.values()).index(best_model_score)]
+        # Get model with highest test F1 score
+        best_model_name = max(
+            model_report,
+            key=lambda model: model_report[model]["test_score"]["f1_score"]
+        )
         best_model = models[best_model_name]
+        logging.info(f"Best model: {best_model_name} with F1 Score: {model_report[best_model_name]['test_score']['f1_score']}")
 
         # Train and evaluate on train data
         y_train_pred = best_model.predict(X_train)

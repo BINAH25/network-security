@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Phishing Prediction</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Phishing URL Detection</h1>
+
+    <div class="form-section">
+      <h2>🔹 Individual Prediction</h2>
+      <form method="POST" action="/predict-single">
+        <label for="features">Enter Features (comma-separated):</label><br>
+        <input type="text" name="features" placeholder="1,0,-1,1,0,..." required value="{{ features if features else '' }}">
+        <button type="submit">Predict</button>
+      </form>
+      {% if prediction is defined %}
+        <div class="result">
+          <h3>Prediction: <span class="pill">{{ "Phishing" if prediction == 1 else "Legitimate" }}</span></h3>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="form-section">
+      <h2>🔹 Batch Prediction (CSV Upload)</h2>
+      <form method="POST" action="/predict" enctype="multipart/form-data">
+        <label for="file">Upload CSV File:</label><br>
+        <input type="file" name="file" accept=".csv" required>
+        <button type="submit">Upload & Predict</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

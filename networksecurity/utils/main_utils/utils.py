@@ -5,14 +5,13 @@ import numpy as np
 import pickle
 import boto3
 
-from sklearn.metrics import r2_score
 from sklearn.model_selection import GridSearchCV
-
+from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 from networksecurity.exception.exception import NetworkSecurityException
 from networksecurity.logging.logger import logging
 
 
-# ✅ Function to read YAML config files
+# Function to read YAML config files
 def read_yaml_file(file_path: str) -> dict:
     try:
         with open(file_path, "rb") as yaml_file:
@@ -21,7 +20,7 @@ def read_yaml_file(file_path: str) -> dict:
         raise NetworkSecurityException(e, sys) from e
 
 
-# ✅ Function to write YAML content to file
+# Function to write YAML content to file
 def write_yaml_file(file_path: str, content: object, replace: bool = False) -> None:
     try:
         # If replacing is enabled and file exists, remove it
@@ -34,7 +33,7 @@ def write_yaml_file(file_path: str, content: object, replace: bool = False) -> N
         raise NetworkSecurityException(e, sys)
 
 
-# ✅ Save NumPy array to a .npy file
+# Save NumPy array to a .npy file
 def save_numpy_array_data(file_path: str, array: np.array):
     try:
         dir_path = os.path.dirname(file_path)
@@ -45,7 +44,7 @@ def save_numpy_array_data(file_path: str, array: np.array):
         raise NetworkSecurityException(e, sys) from e
 
 
-# ✅ Save any Python object (e.g. model, transformer) using Pickle
+# Save any Python object (e.g. model, transformer) using Pickle
 def save_object(file_path: str, obj: object) -> None:
     try:
         logging.info("Entered the save_object method of MainUtils class")
@@ -57,7 +56,7 @@ def save_object(file_path: str, obj: object) -> None:
         raise NetworkSecurityException(e, sys) from e
 
 
-# ✅ Load a pickled object from file
+# Load a pickled object from file
 def load_object(file_path: str) -> object:
     try:
         if not os.path.exists(file_path):
@@ -68,7 +67,7 @@ def load_object(file_path: str) -> object:
         raise NetworkSecurityException(e, sys) from e
 
 
-# ✅ Load NumPy array from .npy file
+# Load NumPy array from .npy file
 def load_numpy_array_data(file_path: str) -> np.array:
     try:
         with open(file_path, "rb") as file_obj:
@@ -77,32 +76,48 @@ def load_numpy_array_data(file_path: str) -> np.array:
         raise NetworkSecurityException(e, sys) from e
 
 
-# ✅ Evaluate and compare models using GridSearchCV and R2 Score
+# Evaluate and compare models using GridSearchCV and R2 Score
 def evaluate_models(X_train, y_train, X_test, y_test, models, param):
     try:
         report = {}
 
-        for i in range(len(list(models))):
-            model = list(models.values())[i]
-            para = param[list(models.keys())[i]]
+        for model_name in models:
+            model = models[model_name]
+            hyperparams = param.get(model_name, {})
 
-            # Use GridSearchCV to find best hyperparameters
-            gs = GridSearchCV(model, para, cv=3)
+            # Grid search
+            gs = GridSearchCV(model, hyperparams, cv=3, n_jobs=-1, verbose=1)
             gs.fit(X_train, y_train)
 
-            # Set best parameters and re-train
+            # Update model with best params and re-train
             model.set_params(**gs.best_params_)
             model.fit(X_train, y_train)
 
-            # Predict and calculate R2 scores
+            # Predict on both train and test sets
             y_train_pred = model.predict(X_train)
             y_test_pred = model.predict(X_test)
 
-            train_model_score = r2_score(y_train, y_train_pred)
-            test_model_score = r2_score(y_test, y_test_pred)
+            # Train metrics
+            train_metrics = {
+                "accuracy": accuracy_score(y_train, y_train_pred),
+                "precision": precision_score(y_train, y_train_pred),
+                "recall": recall_score(y_train, y_train_pred),
+                "f1_score": f1_score(y_train, y_train_pred),
+            }
 
-            # Store test score for model
-            report[list(models.keys())[i]] = test_model_score
+            # Test metrics
+            test_metrics = {
+                "accuracy": accuracy_score(y_test, y_test_pred),
+                "precision": precision_score(y_test, y_test_pred),
+                "recall": recall_score(y_test, y_test_pred),
+                "f1_score": f1_score(y_test, y_test_pred),
+            }
+
+            # Store both train and test metrics
+            report[model_name] = {
+                "train_score": train_metrics,
+                "test_score": test_metrics,
+            }
 
         return report
 
@@ -110,7 +125,7 @@ def evaluate_models(X_train, y_train, X_test, y_test, models, param):
         raise NetworkSecurityException(e, sys)
 
 
-# ✅ Generic S3 upload function that works with any bucket type (Gold, Silver, Bronze)
+# Generic S3 upload function that works with any bucket type (Gold, Silver, Bronze)
 def upload_file_to_s3(file_path: str, s3_key: str, bucket_env_key: str):
     """
     Uploads a file to an S3 bucket.
@@ -132,6 +147,6 @@ def upload_file_to_s3(file_path: str, s3_key: str, bucket_env_key: str):
 
         # Upload the file to S3
         s3_client.upload_file(file_path, s3_bucket, s3_key)
-        logging.info(f"✅ Uploaded {file_path} to s3://{s3_bucket}/{s3_key}")
+        logging.info(f" Uploaded {file_path} to s3://{s3_bucket}/{s3_key}")
     except Exception as e:
         raise NetworkSecurityException(e, sys)

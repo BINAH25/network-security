@@ -1,21 +1,10 @@
-FROM python:alpine
+FROM python:3.10-slim-buster
+WORKDIR /app
+COPY . /app
 
-WORKDIR /home/app
+RUN apt update -y && apt install awscli -y
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Upgrade pip
-RUN pip install --upgrade pip
-
-# Copy requirements and install dependencies
-COPY ./requirements.txt .
-RUN pip install -r requirements.txt
-
-# Copy the rest of the application
-COPY . /home/app
-# Copy entrypoint script
+RUN apt-get update && pip install -r requirements.txt
 
 EXPOSE 8000
 CMD ["python3", "app.py"]

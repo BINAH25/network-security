@@ -1,3 +1,30 @@
+name: workflow
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  integration:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Lint code
+        run: echo "Linting repository"
+
+      - name: Run unit tests
+        run: echo "Running unit tests"
+
   build-and-push-ecr-image:
     name: Continuous Delivery
     needs: integration
@@ -27,19 +54,18 @@
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: latest
-          UNIQUE_TAG: ${{ github.sha }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+          IMAGE_TAG_LATEST: latest
         run: |
-          # Build with both 'latest' and unique SHA tag
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-                      -t $ECR_REGISTRY/$ECR_REPOSITORY:$UNIQUE_TAG .
-
-          # Push both tags
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$UNIQUE_TAG
-
-          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST
           
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST
+          
+          echo "::set-output name=image_sha::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA"
+          echo "::set-output name=image_latest::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST"
+
       - name: Force ECS Deployment
         run: |
           aws ecs update-service \

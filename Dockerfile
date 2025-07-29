@@ -1,4 +1,4 @@
-ROM python:alpine
+FROM python:alpine
 
 WORKDIR /home/app
 

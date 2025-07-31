@@ -66,6 +66,10 @@ jobs:
           echo "::set-output name=image_sha::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA"
           echo "::set-output name=image_latest::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST"
 
+  Continuous-Deployment:
+    name: Continuous Deployment
+    needs: build-and-push-ecr-image
+    steps:
       - name: Force ECS Deployment
         run: |
           aws ecs update-service \

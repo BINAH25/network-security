@@ -17,9 +17,12 @@ from networksecurity.logging.logger import logging
 from networksecurity.pipelines.training_pipeline import TrainingPipeline
 from networksecurity.utils.main_utils.utils import load_object
 from networksecurity.utils.ml_utils.model.estimator import NetworkModel
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Initialize FastAPI app
 app = FastAPI()
+# Add Prometheus metrics instrumentator
+Instrumentator().instrument(app).expose(app)
 origins = ["*"]
 
 # Allow all CORS origins

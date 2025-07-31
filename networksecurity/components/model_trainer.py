@@ -1,7 +1,8 @@
 import os
 import sys
 import mlflow
-import dagshub
+from dagshub import init
+from dagshub.auth import add_app_token
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -34,9 +35,14 @@ from dotenv import load_dotenv
 # Load environment variables from .env
 load_dotenv()
 
-# Initialize Dagshub for MLflow tracking
-dagshub.init(repo_owner='visteen192', repo_name='network-security', mlflow=True)
+dagshub_token = os.getenv("DAGSHUB_USER_TOKEN")
 
+# Authenticate before init
+if dagshub_token:
+    add_app_token(dagshub_token)
+
+# Now initialize DagsHub logging
+init(repo_owner='visteen192', repo_name='networksecurity', host="https://dagshub.com")
 
 class ModelTrainer:
     def __init__(self, model_trainer_config: ModelTrainerConfig, data_transformation_artifact: DataTransformationArtifact):

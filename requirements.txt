@@ -7,7 +7,7 @@ boto3
 scikit-learn
 mlflow<3
 pyaml
-dagshub
+dagshub>=0.3.0
 fastapi
 uvicorn
 python-multipart

@@ -69,6 +69,7 @@ jobs:
   Continuous-Deployment:
     name: Continuous Deployment
     needs: build-and-push-ecr-image
+    runs-on: ubuntu-latest
     steps:
       - name: Force ECS Deployment
         run: |

@@ -65,15 +65,23 @@ jobs:
           
           echo "::set-output name=image_sha::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA"
           echo "::set-output name=image_latest::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST"
-
+  
   Continuous-Deployment:
     name: Continuous Deployment
     needs: build-and-push-ecr-image
     runs-on: ubuntu-latest
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Force ECS Deployment
         run: |
           aws ecs update-service \
             --cluster ${{ secrets.ECS_CLUSTER_NAME }} \
             --service ${{ secrets.ECS_SERVICE_NAME }} \
             --force-new-deployment
+
